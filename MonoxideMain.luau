@@ -9,7 +9,6 @@ do
     local HttpService = game:GetService("HttpService")
     local LogService = game:GetService("LogService")
     local CoreGui = game:GetService("CoreGui") 
-    local TweenService = game:GetService("TweenService")
     local UserInputService = game:GetService("UserInputService")
     
     local FILE_SYSTEM_SUPPORT = {
@@ -206,39 +205,28 @@ do
         local messageCounter = 0 
         
         local function dragify(Frame)
-            local dragToggle = nil
-            local dragInput = nil
-            local dragStart = nil
-            local startPos = nil
-        
-            local function updateInput(input)
-                local Delta = input.Position - dragStart
-                local Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + Delta.X, startPos.Y.Scale, startPos.Y.Offset + Delta.Y)
-                TweenService:Create(Frame, TweenInfo.new(.25), {Position = Position}):Play()
-            end
-        
+            local dragging
+            local dragStart
+            local startPos
+            
             Frame.InputBegan:Connect(function(input)
-                if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-                    dragToggle = true
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
                     dragStart = input.Position
                     startPos = Frame.Position
-                    input.Changed:Connect(function()
-                        if (input.UserInputState == Enum.UserInputState.End) then
-                            dragToggle = false
-                        end
-                    end)
                 end
             end)
-        
-            Frame.InputChanged:Connect(function(input)
-                if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                    dragInput = input
+            
+            Frame.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = false
                 end
             end)
-        
+            
             UserInputService.InputChanged:Connect(function(input)
-                if (input == dragInput and dragToggle) then
-                    updateInput(input)
+                if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                    local Delta = input.Position - dragStart
+                    Frame.Position = U(startPos.X.Scale, startPos.X.Offset + Delta.X, startPos.Y.Scale, startPos.Y.Offset + Delta.Y)
                 end
             end)
         end
@@ -333,27 +321,9 @@ do
                 return false
             end
         end
-
-        local function safeExecute(code)
-            local chunk, err = loadstring(code)
-            
-            if chunk then
-                local env = setmetatable({
-                    script = nil,
-                    getfenv = getfenv,
-                    setfenv = setfenv,
-                    loadstring = loadstring,
-                    print = function(...) consolePrint(table.concat({...}, " "), "Output") end
-                }, {__index = _G}) 
-                
-                setfenv(chunk, env)
-                
-                pcall(chunk) 
-            else
-                consolePrint("Compilation Error: " .. tostring(err), "Error")
-            end
-        end
-
+        
+        -- Removed safeExecute as per request, replacing its functionality in onExecuteClicked
+        
         local function updateSavedScriptsList()
             for _, child in pairs(savedScriptsFrame:GetChildren()) do
                 if child.Name:match("^Container_") then 
@@ -549,13 +519,37 @@ do
             
             cancelBtn.MouseButton1Click:Connect(closePopup)
         end
-
+        
+        -- MODIFIED FUNCTION TO USE EXECUTOR API
         local function onExecuteClicked()
             local code = codeBox.Text
             if code and code:len() > 0 and code ~= "-- Monoxide created by Nexus and the Instance.new Team." then
-                safeExecute(code)
+                
+                -- Attempt to use the global executor API function 'execute'
+                if type(execute) == "function" then
+                    local success, result = pcall(execute, code)
+                    if not success then
+                        consolePrint("Executor Error: Failed to execute code via global 'execute': " .. tostring(result), "Error")
+                    else
+                        consolePrint("Code sent to executor API.", "System")
+                    end
+                else
+                    -- Fallback to standard Lua loadstring/pcall if 'execute' isn't available
+                    local chunk, err = loadstring(code)
+                    if chunk then
+                        local success, result = pcall(chunk)
+                        if not success then
+                            consolePrint("Runtime Error (loadstring fallback): " .. tostring(result), "Error")
+                        else
+                            consolePrint("Code executed via loadstring (global 'execute' not found).", "System")
+                        end
+                    else
+                        consolePrint("Compilation Error (loadstring fallback): " .. tostring(err), "Error")
+                    end
+                end
             end
         end
+        -- END MODIFIED FUNCTION
 
         local function onClearClicked()
             codeBox.Text = ""
