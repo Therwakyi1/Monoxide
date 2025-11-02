@@ -9,7 +9,9 @@ do
     local HttpService = game:GetService("HttpService")
     local LogService = game:GetService("LogService")
     local CoreGui = game:GetService("CoreGui") 
-
+    local TweenService = game:GetService("TweenService")
+    local UserInputService = game:GetService("UserInputService")
+    
     local FILE_SYSTEM_SUPPORT = {
         readfile = false,
         writefile = false,
@@ -202,6 +204,46 @@ do
         local DATA_STORE_KEY = CACHE_FOLDER .. "MonoxideSavedScripts" 
 
         local messageCounter = 0 
+        
+        local function dragify(Frame)
+            local dragToggle = nil
+            local dragInput = nil
+            local dragStart = nil
+            local startPos = nil
+        
+            local function updateInput(input)
+                local Delta = input.Position - dragStart
+                local Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + Delta.X, startPos.Y.Scale, startPos.Y.Offset + Delta.Y)
+                TweenService:Create(Frame, TweenInfo.new(.25), {Position = Position}):Play()
+            end
+        
+            Frame.InputBegan:Connect(function(input)
+                if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+                    dragToggle = true
+                    dragStart = input.Position
+                    startPos = Frame.Position
+                    input.Changed:Connect(function()
+                        if (input.UserInputState == Enum.UserInputState.End) then
+                            dragToggle = false
+                        end
+                    end)
+                end
+            end)
+        
+            Frame.InputChanged:Connect(function(input)
+                if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                    dragInput = input
+                end
+            end)
+        
+            UserInputService.InputChanged:Connect(function(input)
+                if (input == dragInput and dragToggle) then
+                    updateInput(input)
+                end
+            end)
+        end
+        
+        dragify(tab)
 
         local function consolePrint(message, messageType)
             local msgLabel = I("TextLabel")
